@@ -37,7 +37,7 @@ class Player extends SceneNode {
 
     /* Camera */
     this.camera = new CameraNode(scene, 'camera', 70, 4 / 3, this);
-    this.camera.position.z = 1.7; // 1.7m tall
+    this.camera.position.z = 1.6; // 1.7m tall
 
   }
 
