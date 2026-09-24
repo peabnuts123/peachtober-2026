@@ -1,1 +1,1 @@
-{"root":["./src/camera.ts","./src/player.ts","./src/room.ts","./src/index.ts","./vite.config.ts","./tailwind.config.js","./postcss.config.js","./eslint.config.mjs"],"version":"5.9.3"}
+{"root":["./src/index.ts","./vite.config.ts","./tailwind.config.js","./postcss.config.js","./eslint.config.mjs"],"version":"5.9.3"}

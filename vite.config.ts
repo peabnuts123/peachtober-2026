@@ -1,14 +1,12 @@
 import { defineConfig } from 'vite';
 import tailwindcss from '@tailwindcss/vite';
-import { analyzer } from 'vite-bundle-analyzer';
-
 
 export default defineConfig({
+  base: '/peachtober-2026/',
   resolve: {
     tsconfigPaths: true,
   },
   plugins: [
     tailwindcss(),
-    analyzer(),
   ],
 });

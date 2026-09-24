@@ -10,6 +10,10 @@ import { Engine } from '@lopoly/engine/Engine';
 import { Scene, SceneNode, type IScene } from '@lopoly/engine/scene';
 import { WebFileSystem } from '@lopoly/engine/filesystem/WebFileSystem';
 
+const Config = {
+  UrlPrefix: `/peachtober-2026`,
+};
+
 class Player extends SceneNode {
   // Config
   private readonly Speed: number = 5;
@@ -78,7 +82,7 @@ class Player extends SceneNode {
 
 class Game {
   public async run(canvas: HTMLCanvasElement): Promise<void> {
-    const fileSystem = new WebFileSystem();
+    const fileSystem = new WebFileSystem(Config.UrlPrefix);
 
     /* Engine */
     const engine = new Engine(canvas, fileSystem, { rendering: { fullScreenDither: true } });
@@ -90,11 +94,11 @@ class Game {
     scene.clearColour = Color3.black();
 
     /* Models */
-    const officeModel = await Model.fromDefinition(engine, await GltfLoader.loadModel('/models/office.glb', fileSystem));
+    const officeModel = await Model.fromDefinition(engine, await GltfLoader.loadModel('models/office.glb', fileSystem));
 
     /* Scene */
-    const office = new ModelNode(scene, 'office', officeModel);
-    const player = new Player(scene);
+    const _office = new ModelNode(scene, 'office', officeModel);
+    const _player = new Player(scene);
 
     /* Run */
     engine.run();
