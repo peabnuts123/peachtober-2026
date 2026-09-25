@@ -2,7 +2,7 @@ import './style.css';
 
 import { DebugModule } from '@lopoly/engine/util/DebugModule';
 import { Vector3, Color3, Vector2, Quaternion, clamp, type Vector3Like } from '@lopoly/engine/math';
-import { BoxColliderNode, ColliderNode, ModelNode, PointLightNode, type BoxColliderShapeConstructorArgs } from '@lopoly/engine/scene/nodes';
+import { BoxColliderNode, ColliderNode, DirectionalLightNode, ModelNode, PointLightNode, type BoxColliderShapeConstructorArgs } from '@lopoly/engine/scene/nodes';
 import { Model } from '@lopoly/engine/models';
 import { AxisAlignedBoundingBox, GamepadAxis, GamepadButton, GltfLoader, KeyCode, MouseButton, type IInputSystem, type ModelDefinition, type ModelPartDefinition } from '@lopoly/engine';
 import { CameraNode } from '@lopoly/engine/scene/nodes';
@@ -45,10 +45,12 @@ class Player extends SceneNode {
 
     /* Lighting */
     const light = new PointLightNode(scene, 'player:debug_light', { color: Color3.white() }, this);
+    light.intensity = 0.5;
+    light.range = 20;
     light.position.z = 1;
 
     /* Camera */
-    this.camera = new CameraNode(scene, 'player:camera', 70, 4 / 3, this);
+    this.camera = new CameraNode(scene, 'player:camera', 60, 4 / 3, this);
     this.camera.position.z = Player.TargetPlayerHeightMeters - 0.15; // @ASSUMPTION One's eyes are 15cm below their height
 
     /* Collision */
@@ -183,8 +185,8 @@ class Office extends SceneNode {
 
     const _modelNode = new ModelNode(scene, 'office:model', officeModel, office);
 
-
-
+    const _sun = new DirectionalLightNode(scene, 'sun', { intensity: 0.2 });
+    _sun.rotation.x = -90;
 
     return office;
   }
@@ -205,7 +207,9 @@ class Office extends SceneNode {
 
     // Walk model part looking for parts named "Collider*"
     // Create a Collider based on the part's extents, then remove it from the model
-    async function walkModelParts(part: ModelPartDefinition, parent?: ModelPartDefinition): Promise<void> {
+    async function walkModelParts(part: ModelPartDefinition, parentTransform: Vector3, parent?: ModelPartDefinition): Promise<void> {
+      const partTransform = parentTransform.add(part.transform.position);
+
       // If part called Collider*, convert to collider
       if (part.name.startsWith('Collider') && part.mesh) {
         const meshExtents = AxisAlignedBoundingBox.zero();
@@ -217,9 +221,9 @@ class Office extends SceneNode {
           y: meshExtents.yMax - meshExtents.yMin,
           z: meshExtents.zMax - meshExtents.zMin,
         }, {
-          x: part.transform.position.x + (meshExtents.xMax + meshExtents.xMin) / 2,
-          y: part.transform.position.y + (meshExtents.yMax + meshExtents.yMin) / 2,
-          z: part.transform.position.z + (meshExtents.zMax + meshExtents.zMin) / 2,
+          x: partTransform.x + (meshExtents.xMax + meshExtents.xMin) / 2,
+          y: partTransform.y + (meshExtents.yMax + meshExtents.yMin) / 2,
+          z: partTransform.z + (meshExtents.zMax + meshExtents.zMin) / 2,
         });
 
         // Remove from model definition
@@ -238,13 +242,13 @@ class Office extends SceneNode {
 
       // Walk children
       for (const childPart of part.children) {
-        await walkModelParts(childPart, part);
+        await walkModelParts(childPart, partTransform, part);
       };
     }
 
     // Walk scene root objects
     for (const rootPart of officeModelDefinition.rootParts) {
-      await walkModelParts(rootPart);
+      await walkModelParts(rootPart, Vector3.zero());
     }
 
     // Remove model parts converted to colliders
@@ -268,7 +272,7 @@ class Game {
     engine.inputSystem.lockPointer();
 
     const scene = new Scene(engine);
-    scene.lighting.ambientColor = new Color3(30, 30, 30);
+    scene.lighting.ambientColor = new Color3(1, 1,1).scaleSelf(100);
     scene.clearColour = Color3.black();
 
     /* Scene */
