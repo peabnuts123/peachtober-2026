@@ -4,7 +4,7 @@ import { DebugModule } from '@lopoly/engine/util/DebugModule';
 import { Vector3, Color3, Vector2, Quaternion, clamp, type Vector3Like } from '@lopoly/engine/math';
 import { BoxColliderNode, ColliderNode, ModelNode, PointLightNode, type BoxColliderShapeConstructorArgs } from '@lopoly/engine/scene/nodes';
 import { Model } from '@lopoly/engine/models';
-import { AxisAlignedBoundingBox, GamepadAxis, GamepadButton, GltfLoader, KeyCode, Material, MouseButton, ShaderBlendingMode, type IInputSystem, type ModelDefinition, type ModelPartDefinition } from '@lopoly/engine';
+import { AxisAlignedBoundingBox, GamepadAxis, GamepadButton, GltfLoader, KeyCode, MouseButton, type IInputSystem, type ModelDefinition, type ModelPartDefinition } from '@lopoly/engine';
 import { CameraNode } from '@lopoly/engine/scene/nodes';
 import { Engine } from '@lopoly/engine/Engine';
 import { Scene, SceneNode, type IScene } from '@lopoly/engine/scene';
@@ -150,7 +150,7 @@ class Player extends SceneNode {
 }
 
 class Collider extends BoxColliderNode {
-  public static readonly DebugVisualise: boolean = true;
+  public static readonly DebugVisualise: boolean = false;
 
   public constructor(scene: IScene, name: string, dimensions: BoxColliderShapeConstructorArgs, parent?: SceneNode) {
     super(scene, name, 0, dimensions, parent);

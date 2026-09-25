@@ -9,4 +9,4 @@ input="$1"
 output="$2"
 
 /Applications/Blender.app/Contents/MacOS/Blender -b "$input" \
-  --python-expr "import bpy; bpy.ops.export_scene.gltf(filepath='${output}', use_visible=True)"
+  --python-expr "import bpy; bpy.ops.export_scene.gltf(filepath='${output}')"
