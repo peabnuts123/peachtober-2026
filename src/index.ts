@@ -1,10 +1,10 @@
 import './style.css';
 
 import { DebugModule } from '@lopoly/engine/util/DebugModule';
-import { Vector3, Color3, Vector2, Quaternion, clamp, Color4, type Vector3Like } from '@lopoly/engine/math';
+import { Vector3, Color3, Vector2, Quaternion, clamp, type Vector3Like } from '@lopoly/engine/math';
 import { BoxColliderNode, ColliderNode, ModelNode, PointLightNode, type BoxColliderShapeConstructorArgs } from '@lopoly/engine/scene/nodes';
 import { Model } from '@lopoly/engine/models';
-import { GamepadAxis, GamepadButton, GltfLoader, KeyCode, Material, MouseButton, ShaderBlendingMode, type IInputSystem } from '@lopoly/engine';
+import { AxisAlignedBoundingBox, GamepadAxis, GamepadButton, GltfLoader, KeyCode, Material, MouseButton, ShaderBlendingMode, type IInputSystem, type ModelDefinition, type ModelPartDefinition } from '@lopoly/engine';
 import { CameraNode } from '@lopoly/engine/scene/nodes';
 import { Engine } from '@lopoly/engine/Engine';
 import { Scene, SceneNode, type IScene } from '@lopoly/engine/scene';
@@ -150,48 +150,24 @@ class Player extends SceneNode {
 }
 
 class Collider extends BoxColliderNode {
-  public static readonly DebugVisualise: boolean = false;
-  private static _DebugVizModel: Promise<Model> | undefined;
+  public static readonly DebugVisualise: boolean = true;
 
-  public constructor(scene: IScene, name: string, dimensions: BoxColliderShapeConstructorArgs, boxModel: Model, parent?: SceneNode) {
+  public constructor(scene: IScene, name: string, dimensions: BoxColliderShapeConstructorArgs, parent?: SceneNode) {
     super(scene, name, 0, dimensions, parent);
 
-    if (Collider.DebugVisualise) {
-      const box = new ModelNode(scene, `${name}:viz`, boxModel, this);
-      box.scale.scaleSelf(dimensions);
-      this.drawWireframe = true;
-    }
+    this.drawWireframe = Collider.DebugVisualise;
   }
 
   public static async create(scene: IScene, name: string, dimensions: BoxColliderShapeConstructorArgs, parent?: SceneNode): Promise<Collider> {
-    const boxModel = await this.getDebugVizModel(scene);
-
-    return new Collider(
-      scene,
-      name,
-      dimensions,
-      boxModel,
-      parent,
+    return Promise.resolve(
+      new Collider(
+        scene,
+        name,
+        dimensions,
+        parent,
+      ),
     );
   }
-
-  private static getDebugVizModel(scene: IScene): Promise<Model> {
-    if (Collider._DebugVizModel == undefined) {
-      Collider._DebugVizModel = (async () => {
-        const boxModelDefinition = await GltfLoader.loadModel('models/cube.glb', scene.engine.fileSystem);
-        const boxModel = await Model.fromDefinition(scene.engine, boxModelDefinition);
-        boxModel.setMaterialOverride('default', new Material({
-          diffuseColor: Color4.fuchsia().scaleSelf(0.5).withA(0x00),
-          blendingMode: ShaderBlendingMode.Additive(),
-          unlit: true,
-        }));
-
-        return boxModel;
-      })();
-    }
-    return Collider._DebugVizModel;
-  }
-
 }
 
 class Office extends SceneNode {
@@ -200,12 +176,23 @@ class Office extends SceneNode {
   }
 
   public static async create(scene: IScene): Promise<Office> {
-    const officeModelDefinition = await GltfLoader.loadModel('models/office.glb', scene.engine.fileSystem);
-    const officeModel = await Model.fromDefinition(scene.engine, officeModelDefinition);
     const office = new Office(scene);
+
+    const officeModelDefinition = await this.loadOfficeModelDefinition(scene, office);
+    const officeModel = await Model.fromDefinition(scene.engine, officeModelDefinition);
 
     const _modelNode = new ModelNode(scene, 'office:model', officeModel, office);
 
+
+
+
+    return office;
+  }
+
+  private static async loadOfficeModelDefinition(scene: IScene, office: Office): Promise<ModelDefinition> {
+    const officeModelDefinition = await GltfLoader.loadModel('models/office.glb', scene.engine.fileSystem);
+
+    /** Convenience function to create a collider in the scene */
     async function createCollider(dimensions: BoxColliderShapeConstructorArgs, position: Vector3Like): Promise<Collider> {
       const collider = await Collider.create(scene, `office:collider`, dimensions, office);
       collider.position.setValue(position);
@@ -213,13 +200,61 @@ class Office extends SceneNode {
       return collider;
     }
 
-    const _colliders = await Promise.all([
-      createCollider({ x: 30, y: 24, z: 1 }, { x: 15, y: 12, z: -0.5 }),
-    ]);
+    // Model parts to remove from the model definition
+    const toRemove: { part: ModelPartDefinition, collection: ModelPartDefinition[] }[] = [];
 
+    // Walk model part looking for parts named "Collider*"
+    // Create a Collider based on the part's extents, then remove it from the model
+    async function walkModelParts(part: ModelPartDefinition, parent?: ModelPartDefinition): Promise<void> {
+      // If part called Collider*, convert to collider
+      if (part.name.startsWith('Collider') && part.mesh) {
+        const meshExtents = AxisAlignedBoundingBox.zero();
+        for (const primitive of part.mesh.primitives) {
+          meshExtents.unionSelf(primitive.extents);
+        }
+        await createCollider({
+          x: meshExtents.xMax - meshExtents.xMin,
+          y: meshExtents.yMax - meshExtents.yMin,
+          z: meshExtents.zMax - meshExtents.zMin,
+        }, {
+          x: part.transform.position.x + (meshExtents.xMax + meshExtents.xMin) / 2,
+          y: part.transform.position.y + (meshExtents.yMax + meshExtents.yMin) / 2,
+          z: part.transform.position.z + (meshExtents.zMax + meshExtents.zMin) / 2,
+        });
 
-    return office;
+        // Remove from model definition
+        if (parent !== undefined) {
+          toRemove.push({
+            part,
+            collection: parent.children,
+          });
+        } else {
+          toRemove.push({
+            part,
+            collection: officeModelDefinition.rootParts,
+          });
+        }
+      }
+
+      // Walk children
+      for (const childPart of part.children) {
+        await walkModelParts(childPart, part);
+      };
+    }
+
+    // Walk scene root objects
+    for (const rootPart of officeModelDefinition.rootParts) {
+      await walkModelParts(rootPart);
+    }
+
+    // Remove model parts converted to colliders
+    for (const { part, collection } of toRemove) {
+      collection.splice(collection.indexOf(part), 1);
+    }
+
+    return officeModelDefinition;
   }
+
 }
 
 class Game {
