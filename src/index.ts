@@ -4,7 +4,7 @@ import { DebugModule } from '@lopoly/engine/util/DebugModule';
 import { Vector3, Color3, Vector2, Quaternion, clamp, Color4, type Vector3Like } from '@lopoly/engine/math';
 import { BoxColliderNode, ColliderNode, ModelNode, PointLightNode, type BoxColliderShapeConstructorArgs } from '@lopoly/engine/scene/nodes';
 import { Model } from '@lopoly/engine/models';
-import { GamepadAxis, GamepadButton, GltfLoader, KeyCode, Material, ShaderBlendingMode, type IInputSystem } from '@lopoly/engine';
+import { GamepadAxis, GamepadButton, GltfLoader, KeyCode, Material, MouseButton, ShaderBlendingMode, type IInputSystem } from '@lopoly/engine';
 import { CameraNode } from '@lopoly/engine/scene/nodes';
 import { Engine } from '@lopoly/engine/Engine';
 import { Scene, SceneNode, type IScene } from '@lopoly/engine/scene';
@@ -19,6 +19,7 @@ class Player extends SceneNode {
   private static readonly TargetPlayerHeightMeters = 1.75;
   private static readonly ReferenceHitBox = new Vector3(30, 30, 70); // @NOTE Half-life 2 hitbox
   private static readonly Speed: number = 5;
+  private static readonly CrouchFactor: number = 0.5;
   private static readonly CameraRotateSpeed = 150;
   private static readonly CameraCursorFactor = 0.3;
   private static readonly Gravity = -30;
@@ -32,6 +33,7 @@ class Player extends SceneNode {
   private readonly collider: ColliderNode;
 
   // State
+  private currentSpeed = Player.Speed;
   private readonly velocity: Vector3 = Vector3.zero();
   private isOnGround: boolean = false;
 
@@ -85,7 +87,7 @@ class Player extends SceneNode {
       0,
     )
       .normalizeSelf()
-      .scaleSelf(Player.Speed);
+      .scaleSelf(this.currentSpeed);
     /* Transform relative to camera */
     Quaternion.fromAxisAngle(Vector3.up(), this.camera.absoluteRotation.z).rotateVectorInPlace(inputVelocity);
 
@@ -116,6 +118,25 @@ class Player extends SceneNode {
       console.warn(`Player has fallen out of the level! Respawning.`);
       this.velocity.setValue(Vector3.zero());
       this.position = Player.SpawnPoint;
+    }
+
+    // Crouch
+    if (this.input.wasButtonPressed('player:crouch')) {
+      this.camera.position.z = (Player.TargetPlayerHeightMeters * Player.CrouchFactor) - 0.15; // @ASSUMPTION One's eyes are 15cm below their height
+      this.collider.scale.z = Player.CrouchFactor;
+      this.collider.position.z = (Player.TargetPlayerHeightMeters * Player.CrouchFactor) / 2;
+      this.currentSpeed = Player.Speed * Player.CrouchFactor;
+    }
+    if (this.input.wasButtonReleased('player:crouch')) {
+      this.camera.position.z = Player.TargetPlayerHeightMeters - 0.15; // @ASSUMPTION One's eyes are 15cm below their height
+      this.collider.scale.z = 1;
+      this.collider.position.z = Player.TargetPlayerHeightMeters / 2;
+      this.currentSpeed = Player.Speed;
+    }
+
+    // Use
+    if (this.input.wasButtonPressed('player:use')) {
+      console.log(`[DEBUG] Beep`);
     }
   }
 
@@ -261,6 +282,23 @@ class Game {
           bindings: [
             KeyCode.Space,
             GamepadButton.South,
+          ],
+        },
+        {
+          name: 'player:crouch',
+          bindings: [
+            KeyCode.ControlLeft,
+            KeyCode.ControlRight,
+            GamepadButton.L2,
+            GamepadButton.L3,
+          ],
+        },
+        {
+          name: 'player:use',
+          bindings: [
+            KeyCode.KeyF,
+            MouseButton.Left,
+            GamepadButton.East,
           ],
         },
       ],
