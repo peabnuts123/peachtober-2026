@@ -4,7 +4,7 @@ import { DebugModule } from '@lopoly/engine/util/DebugModule';
 import { Vector3, Color3, Vector2, Quaternion, clamp, type Vector3Like } from '@lopoly/engine/math';
 import { BoxColliderNode, ColliderNode, DirectionalLightNode, ModelNode, PointLightNode, type BoxColliderShapeConstructorArgs } from '@lopoly/engine/scene/nodes';
 import { Model } from '@lopoly/engine/models';
-import { AxisAlignedBoundingBox, GamepadAxis, GamepadButton, GltfLoader, KeyCode, MouseButton, type IInputSystem, type ModelDefinition, type ModelPartDefinition } from '@lopoly/engine';
+import { AxisAlignedBoundingBox, GamepadAxis, GamepadButton, GltfLoader, KeyCode, MouseButton, Transform, type IInputSystem, type ModelDefinition, type ModelPartDefinition } from '@lopoly/engine';
 import { CameraNode } from '@lopoly/engine/scene/nodes';
 import { Engine } from '@lopoly/engine/Engine';
 import { Scene, SceneNode, type IScene } from '@lopoly/engine/scene';
@@ -197,7 +197,7 @@ class Office extends SceneNode {
     /** Convenience function to create a collider in the scene */
     async function createCollider(dimensions: BoxColliderShapeConstructorArgs, position: Vector3Like): Promise<Collider> {
       const collider = await Collider.create(scene, `office:collider`, dimensions, office);
-      collider.position.setValue(position);
+      collider.absolutePosition.setValue(position);
 
       return collider;
     }
@@ -207,30 +207,36 @@ class Office extends SceneNode {
 
     // Walk model part looking for parts named "Collider*"
     // Create a Collider based on the part's extents, then remove it from the model
-    async function walkModelParts(part: ModelPartDefinition, parentTransform: Vector3, parent?: ModelPartDefinition): Promise<void> {
-      const partTransform = parentTransform.add(part.transform.position);
+    async function walkModelParts(part: ModelPartDefinition, parentPart?: ModelPartDefinition, parentTransform?: Transform<ModelPartDefinition>): Promise<void> {
+      const partTransform = new Transform(part, parentTransform);
+      partTransform.position = part.transform.position;
+      partTransform.rotation.q = part.transform.rotation;
+      partTransform.scale = part.transform.scale;
 
       // If part called Collider*, convert to collider
       if (part.name.startsWith('Collider') && part.mesh) {
+        // Compute AABB for mesh
         const meshExtents = AxisAlignedBoundingBox.zero();
         for (const primitive of part.mesh.primitives) {
           meshExtents.unionSelf(primitive.extents);
         }
+        meshExtents.transformSelf(partTransform.worldMatrix); // @NOTE worldMatrix is already absolute
+
         await createCollider({
           x: meshExtents.xMax - meshExtents.xMin,
           y: meshExtents.yMax - meshExtents.yMin,
           z: meshExtents.zMax - meshExtents.zMin,
         }, {
-          x: partTransform.x + (meshExtents.xMax + meshExtents.xMin) / 2,
-          y: partTransform.y + (meshExtents.yMax + meshExtents.yMin) / 2,
-          z: partTransform.z + (meshExtents.zMax + meshExtents.zMin) / 2,
+          x: (meshExtents.xMax + meshExtents.xMin) / 2,
+          y: (meshExtents.yMax + meshExtents.yMin) / 2,
+          z: (meshExtents.zMax + meshExtents.zMin) / 2,
         });
 
         // Remove from model definition
-        if (parent !== undefined) {
+        if (parentPart !== undefined) {
           toRemove.push({
             part,
-            collection: parent.children,
+            collection: parentPart.children,
           });
         } else {
           toRemove.push({
@@ -242,13 +248,13 @@ class Office extends SceneNode {
 
       // Walk children
       for (const childPart of part.children) {
-        await walkModelParts(childPart, partTransform, part);
+        await walkModelParts(childPart, part, partTransform);
       };
     }
 
     // Walk scene root objects
     for (const rootPart of officeModelDefinition.rootParts) {
-      await walkModelParts(rootPart, Vector3.zero());
+      await walkModelParts(rootPart);
     }
 
     // Remove model parts converted to colliders
@@ -272,7 +278,7 @@ class Game {
     engine.inputSystem.lockPointer();
 
     const scene = new Scene(engine);
-    scene.lighting.ambientColor = new Color3(1, 1,1).scaleSelf(100);
+    scene.lighting.ambientColor = new Color3(1, 1, 1).scaleSelf(100);
     scene.clearColour = Color3.black();
 
     /* Scene */
@@ -359,4 +365,3 @@ try {
     console.error(`Global error: ${e}`);
   }
 }
-
