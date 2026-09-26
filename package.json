@@ -12,7 +12,7 @@
     "checkall": "npm run typecheck && npm run lint && CI=true npm run build"
   },
   "dependencies": {
-    "@lopoly/engine": "^0.1.0"
+    "@lopoly/engine": "^0.1.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
